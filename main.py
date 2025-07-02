@@ -135,6 +135,94 @@ class PongGame:
         if abs(self.ball_speed_y) > 10:
             self.ball_speed_y = 10 if self.ball_speed_y > 0 else -10
     
+    def draw_escape_menu(self):
+        """Draw the escape menu overlay"""
+        # Semi-transparent overlay
+        overlay = pygame.Surface((WIDTH, HEIGHT))
+        overlay.set_alpha(128)
+        overlay.fill((0, 0, 0))
+        self.screen.blit(overlay, (0, 0))
+        
+        # Menu box
+        menu_width, menu_height = 300, 200
+        menu_x = WIDTH // 2 - menu_width // 2
+        menu_y = HEIGHT // 2 - menu_height // 2
+        
+        pygame.draw.rect(self.screen, (40, 40, 40), (menu_x, menu_y, menu_width, menu_height))
+        pygame.draw.rect(self.screen, (255, 255, 255), (menu_x, menu_y, menu_width, menu_height), 3)
+        
+        # Title
+        title_font = pygame.font.Font(None, 48)
+        title_text = title_font.render("PAUSED", True, (255, 255, 255))
+        title_rect = title_text.get_rect(center=(WIDTH // 2, menu_y + 30))
+        self.screen.blit(title_text, title_rect)
+        
+        return menu_x, menu_y, menu_width, menu_height
+    
+    def draw_menu_option(self, text, x, y, width, height, selected=False):
+        """Draw a menu option button"""
+        color = (100, 100, 255) if selected else (60, 60, 60)
+        border_color = (255, 255, 255) if selected else (150, 150, 150)
+        text_color = (255, 255, 255)
+        
+        pygame.draw.rect(self.screen, color, (x, y, width, height))
+        pygame.draw.rect(self.screen, border_color, (x, y, width, height), 2)
+        
+        option_font = pygame.font.Font(None, 36)
+        option_text = option_font.render(text, True, text_color)
+        text_rect = option_text.get_rect(center=(x + width // 2, y + height // 2))
+        self.screen.blit(option_text, text_rect)
+    
+    def show_escape_menu(self):
+        """Show the escape menu and handle input"""
+        menu_options = ["Resume", "New Game", "Quit"]
+        selected_option = 0
+        
+        while True:
+            for event in pygame.event.get():
+                if event.type == QUIT:
+                    return "quit"
+                if event.type == KEYDOWN:
+                    if event.key == K_ESCAPE:
+                        return "resume"
+                    elif event.key == K_UP:
+                        selected_option = (selected_option - 1) % len(menu_options)
+                    elif event.key == K_DOWN:
+                        selected_option = (selected_option + 1) % len(menu_options)
+                    elif event.key == K_RETURN:
+                        if selected_option == 0:  # Resume
+                            return "resume"
+                        elif selected_option == 1:  # New Game
+                            return "new_game"
+                        elif selected_option == 2:  # Quit
+                            return "quit"
+            
+            # Redraw the game state
+            self.draw()
+            
+            # Draw escape menu
+            menu_x, menu_y, menu_width, menu_height = self.draw_escape_menu()
+            
+            # Draw menu options
+            button_width = 200
+            button_height = 30
+            button_x = WIDTH // 2 - button_width // 2
+            start_y = menu_y + 70
+            
+            for i, option in enumerate(menu_options):
+                button_y = start_y + i * 40
+                selected = (i == selected_option)
+                self.draw_menu_option(option, button_x, button_y, button_width, button_height, selected)
+            
+            # Instructions
+            inst_font = pygame.font.Font(None, 24)
+            inst_text = inst_font.render("Use UP/DOWN to select, ENTER to confirm, ESC to resume", True, (200, 200, 200))
+            inst_rect = inst_text.get_rect(center=(WIDTH // 2, menu_y + menu_height - 20))
+            self.screen.blit(inst_text, inst_rect)
+            
+            pygame.display.flip()
+            self.clock.tick(30)
+    
     def draw(self):
         """Draw all game objects"""
         self.screen.fill((0, 0, 0))
@@ -167,8 +255,11 @@ class PongGame:
         
         pygame.display.flip()
     
-    def run(self, speed_setting):
-        """Main game loop"""
+    def reset_game(self, speed_setting):
+        """Reset the game state for a new game"""
+        self.player_score = 0
+        self.ai_score = 0
+        
         # Set ball speed based on menu selection
         speed_map = {
             Speed.SLOW: 4,
@@ -180,6 +271,10 @@ class PongGame:
         self.ball_speed_y = base_speed // 2
         
         self.reset_ball()
+    
+    def run(self, speed_setting):
+        """Main game loop"""
+        self.reset_game(speed_setting)
         
         running = True
         while running:
@@ -189,7 +284,15 @@ class PongGame:
                     running = False
                 if event.type == KEYDOWN:
                     if event.key == K_ESCAPE:
-                        running = False
+                        # Show escape menu
+                        menu_result = self.show_escape_menu()
+                        if menu_result == "quit":
+                            running = False
+                        elif menu_result == "new_game":
+                            # Show menu again to select speed
+                            new_speed = menu()
+                            self.reset_game(new_speed)
+                        # If "resume", just continue the game loop
             
             # Handle player input
             keys = pygame.key.get_pressed()
